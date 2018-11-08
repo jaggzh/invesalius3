@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 #--------------------------------------------------------------------------
 # Software:     InVesalius - Software de Reconstrucao 3D de Imagens Medicas
 # Copyright:    (C) 2001  Centro de Pesquisas Renato Archer
@@ -47,7 +47,7 @@ try:
 except ImportError:
     from wx import SplashScreen
 #from wx.lib.pubsub import setupv1 #new wx
-from wx.lib.pubsub import setuparg1# as psv1
+#  from wx.lib.pubsub import setuparg1# as psv1
 #from wx.lib.pubsub import Publisher 
 #import wx.lib.pubsub as ps
 from wx.lib.pubsub import pub as Publisher
@@ -117,7 +117,7 @@ class InVesalius(wx.App):
         Open drag & drop files under darwin
         """
         path = os.path.abspath(filename)
-        Publisher.sendMessage('Open project', path)
+        Publisher.sendMessage('Open project', filepath=path)
 
     def Startup2(self):
         self.control = self.splash.control
@@ -193,12 +193,14 @@ class Inv3SplashScreen(SplashScreen):
         # Only after language was defined, splash screen will be
         # shown
         if lang:
-            #  print "LANG", lang, _, wx.Locale(), wx.GetLocale()
-            import locale
-            try:
-                locale.setlocale(locale.LC_ALL, '')
-            except locale.Error:
-                pass
+            
+            #import locale
+            #try:
+            #    locale.setlocale(locale.LC_ALL, '')
+            #except locale.Error:
+            #    pass
+            
+            
             # For pt_BR, splash_pt.png should be used
             if (lang.startswith('pt')):
                 icon_file = "splash_pt.png"
@@ -347,10 +349,10 @@ def use_cmd_optargs(options, args):
     # If import DICOM argument...
     if options.dicom_dir:
         import_dir = options.dicom_dir
-        Publisher.sendMessage('Import directory', {'directory': import_dir, 'gui': not options.no_gui})
+        Publisher.sendMessage('Import directory', directory=import_dir, use_gui=not options.no_gui)
 
         if options.save:
-            Publisher.sendMessage('Save project', os.path.abspath(options.save))
+            Publisher.sendMessage('Save project', filepath=os.path.abspath(options.save))
             exit(0)
 
         check_for_export(options)
@@ -360,9 +362,11 @@ def use_cmd_optargs(options, args):
         import invesalius.reader.dicom_reader as dcm
         for patient in dcm.GetDicomGroups(options.import_all):
             for group in patient.GetGroups():
-                Publisher.sendMessage('Import group', {'group': group, 'gui': not options.no_gui})
+                Publisher.sendMessage('Import group',
+                                      group=group,
+                                      use_gui=not options.no_gui)
                 check_for_export(options, suffix=group.title, remove_surfaces=False)
-                Publisher.sendMessage('Remove masks', [0])
+                Publisher.sendMessage('Remove masks', mask_indexes=(0,))
         return True
 
     # Check if there is a file path somewhere in what the user wrote
@@ -373,14 +377,14 @@ def use_cmd_optargs(options, args):
             file = utils.decode(arg, FS_ENCODE)
             if os.path.isfile(file):
                 path = os.path.abspath(file)
-                Publisher.sendMessage('Open project', path)
+                Publisher.sendMessage('Open project', filepath=path)
                 check_for_export(options)
                 return True
-            
+
             file = utils.decode(arg, sys.stdin.encoding)
             if os.path.isfile(file):
                 path = os.path.abspath(file)
-                Publisher.sendMessage('Open project', path)
+                Publisher.sendMessage('Open project', filepath=path)
                 check_for_export(options)
                 return True
 
@@ -428,7 +432,8 @@ def check_for_export(options, suffix='', remove_surfaces=False):
 def export(path_, threshold_range, remove_surface=False):
     import invesalius.constants as const
 
-    Publisher.sendMessage('Set threshold values', threshold_range)
+    Publisher.sendMessage('Set threshold values',
+                          threshold_range=threshold_range)
 
     surface_options = {
         'method': {
@@ -443,17 +448,20 @@ def export(path_, threshold_range, remove_surface=False):
             'overwrite': False,
         }
     }
-    Publisher.sendMessage('Create surface from index', surface_options)
-    Publisher.sendMessage('Export surface to file', (path_, const.FILETYPE_STL))
+    Publisher.sendMessage('Create surface from index',
+                          surface_parameters=surface_options)
+    Publisher.sendMessage('Export surface to file',
+                          filename=path_, filetype=const.FILETYPE_STL)
     if remove_surface:
-        Publisher.sendMessage('Remove surfaces', [0])
+        Publisher.sendMessage('Remove surfaces',
+                              surface_indexes=(0,))
 
 
-def print_events(data):
+def print_events(topic=Publisher.AUTO_TOPIC, **msg_data):
     """
     Print pubsub messages
     """
-    utils.debug(data.topic)
+    utils.debug("%s\n\tParameters: %s" % (topic, msg_data))
 
 def main():
     """

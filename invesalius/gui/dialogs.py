@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: UTF-8 -*-
 #--------------------------------------------------------------------------
 # Software:     InVesalius - Software de Reconstrucao 3D de Imagens Medicas
@@ -726,7 +725,7 @@ class UpdateMessageDialog(wx.Dialog):
         self.Close()
         self.Destroy()
 
-    def _OnCloseInV(self, pubsub_evt):
+    def _OnCloseInV(self):
         # Closes and destroy this dialog.
         self.Close()
         self.Destroy()
@@ -1663,7 +1662,10 @@ class SurfaceCreationOptionsPanel(wx.Panel):
                               (combo_quality, 0, flag_button, 0)])
 
 
-        # LINES 4 and 5: Checkboxes
+        # LINES 4, 5 and 6: Checkboxes
+        check_box_border_holes = wx.CheckBox(self, -1, _("Fill border holes"))
+        check_box_border_holes.SetValue(False)
+        self.check_box_border_holes = check_box_border_holes
         check_box_holes = wx.CheckBox(self, -1, _("Fill holes"))
         check_box_holes.SetValue(False)
         self.check_box_holes = check_box_holes
@@ -1674,6 +1676,7 @@ class SurfaceCreationOptionsPanel(wx.Panel):
         # Merge all sizers and checkboxes
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(fixed_sizer, 0, wx.TOP|wx.RIGHT|wx.LEFT|wx.GROW|wx.EXPAND, 5)
+        sizer.Add(check_box_border_holes, 0, wx.RIGHT|wx.LEFT, 5)
         sizer.Add(check_box_holes, 0, wx.RIGHT|wx.LEFT, 5)
         sizer.Add(check_box_largest, 0, wx.RIGHT|wx.LEFT, 5)
 
@@ -1688,11 +1691,13 @@ class SurfaceCreationOptionsPanel(wx.Panel):
         mask_index = self.combo_mask.GetSelection()
         surface_name = self.text.GetValue()
         quality = const.SURFACE_QUALITY_LIST[self.combo_quality.GetSelection()]
+        fill_border_holes = self.check_box_border_holes.GetValue()
         fill_holes = self.check_box_holes.GetValue()
         keep_largest = self.check_box_largest.GetValue()
         return {"index": mask_index,
                 "name": surface_name,
                 "quality": quality,
+                "fill_border_holes": fill_border_holes,
                 "fill": fill_holes,
                 "keep_largest": keep_largest,
                 "overwrite": False}
@@ -1880,12 +1885,12 @@ class ClutImagedataDialog(wx.Dialog):
 
     def OnClutChange(self, evt):
         Publisher.sendMessage('Change colour table from background image from widget',
-                              evt.GetNodes())
+                              nodes=evt.GetNodes())
         Publisher.sendMessage('Update window level text',
-                              (self.clut_widget.window_width,
-                               self.clut_widget.window_level))
+                              window=self.clut_widget.window_width,
+                              level=self.clut_widget.window_level)
 
-    def _refresh_widget(self, pubsub_evt):
+    def _refresh_widget(self):
         self.clut_widget.Refresh()
 
     def Show(self, gen_evt=True, show=True):
@@ -2068,7 +2073,8 @@ class MaskBooleanDialog(wx.Dialog):
         m1 = self.mask1.GetClientData(self.mask1.GetSelection())
         m2 = self.mask2.GetClientData(self.mask2.GetSelection())
 
-        Publisher.sendMessage('Do boolean operation', (op, m1, m2))
+        Publisher.sendMessage('Do boolean operation',
+                              operation=op, mask1=m1, mask2=m2)
         Publisher.sendMessage('Reload actual slice')
         Publisher.sendMessage('Refresh viewer')
 
@@ -2152,13 +2158,13 @@ class ReorientImageDialog(wx.Dialog):
         self.btnapply.Bind(wx.EVT_BUTTON, self.apply_reorientation)
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
-    def _update_angles(self, pubsub_evt):
-        anglex, angley, anglez = pubsub_evt.data
+    def _update_angles(self, angles):
+        anglex, angley, anglez = angles
         self.anglex.SetValue("%.3f" % np.rad2deg(anglex))
         self.angley.SetValue("%.3f" % np.rad2deg(angley))
         self.anglez.SetValue("%.3f" % np.rad2deg(anglez))
 
-    def _close_dialog(self, pubsub_evt):
+    def _close_dialog(self):
         self.Destroy()
 
     def apply_reorientation(self, evt):
@@ -2167,13 +2173,13 @@ class ReorientImageDialog(wx.Dialog):
 
     def OnClose(self, evt):
         self._closed = True
-        Publisher.sendMessage('Disable style', const.SLICE_STATE_REORIENT)
-        Publisher.sendMessage('Enable style', const.STATE_DEFAULT)
+        Publisher.sendMessage('Disable style', style=const.SLICE_STATE_REORIENT)
+        Publisher.sendMessage('Enable style', style=const.STATE_DEFAULT)
         self.Destroy()
 
     def OnSelect(self, evt):
         im_code = self.interp_method.GetClientData(self.interp_method.GetSelection())
-        Publisher.sendMessage('Set interpolation method', im_code)
+        Publisher.sendMessage('Set interpolation method', interp_method=im_code)
 
     def OnSetFocus(self, evt):
         self._last_ax = self.anglex.GetValue()
@@ -2191,7 +2197,7 @@ class ReorientImageDialog(wx.Dialog):
                 self.angley.SetValue(self._last_ay)
                 self.anglez.SetValue(self._last_az)
                 return
-            Publisher.sendMessage('Set reorientation angles', (ax, ay, az))
+            Publisher.sendMessage('Set reorientation angles', angles=(ax, ay, az))
 
 
 class ImportBitmapParameters(wx.Dialog):
@@ -2350,7 +2356,7 @@ class ImportBitmapParameters(wx.Dialog):
         values = [self.tx_name.GetValue(), orientation,\
                   self.fsp_spacing_x.GetValue(), self.fsp_spacing_y.GetValue(),\
                   self.fsp_spacing_z.GetValue(), self.interval]
-        Publisher.sendMessage('Open bitmap files', values)
+        Publisher.sendMessage('Open bitmap files', rec_data=values)
 
         self.Close()
         self.Destroy()
@@ -2759,7 +2765,7 @@ class FFillOptionsDialog(wx.Dialog):
     def OnClose(self, evt):
         print("ONCLOSE")
         if self.config.dlg_visible:
-            Publisher.sendMessage('Disable style', const.SLICE_STATE_MASK_FFILL)
+            Publisher.sendMessage('Disable style', style=const.SLICE_STATE_MASK_FFILL)
         evt.Skip()
         self.Destroy()
 
@@ -2845,7 +2851,7 @@ class SelectPartsOptionsDialog(wx.Dialog):
 
     def OnClose(self, evt):
         if self.config.dlg_visible:
-            Publisher.sendMessage('Disable style', const.SLICE_STATE_SELECT_MASK_PARTS)
+            Publisher.sendMessage('Disable style', style=const.SLICE_STATE_SELECT_MASK_PARTS)
         evt.Skip()
         self.Destroy()
 
@@ -3048,7 +3054,7 @@ class FFillSegmentationOptionsDialog(wx.Dialog):
 
     def OnClose(self, evt):
         if self.config.dlg_visible:
-            Publisher.sendMessage('Disable style', const.SLICE_STATE_MASK_FFILL)
+            Publisher.sendMessage('Disable style', style=const.SLICE_STATE_MASK_FFILL)
         evt.Skip()
         self.Destroy()
 
@@ -3068,14 +3074,8 @@ class CropOptionsDialog(wx.Dialog):
 
         self._init_gui()
 
-    def UpdateValues(self, pubsub_evt):
-
-        if type(pubsub_evt) == list:
-            data = pubsub_evt
-        else:
-            data = pubsub_evt.data
-
-        xi, xf, yi, yf, zi, zf = data
+    def UpdateValues(self, limits):
+        xi, xf, yi, yf, zi, zf = limits
 
         self.tx_axial_i.SetValue(str(zi))
         self.tx_axial_f.SetValue(str(zf))
@@ -3170,12 +3170,12 @@ class CropOptionsDialog(wx.Dialog):
     def OnOk(self, evt):
         self.config.dlg_visible = False
         Publisher.sendMessage('Crop mask')
-        Publisher.sendMessage('Disable style', const.SLICE_STATE_CROP_MASK)
+        Publisher.sendMessage('Disable style', style=const.SLICE_STATE_CROP_MASK)
         evt.Skip()
 
     def OnClose(self, evt):
         self.config.dlg_visible = False
-        Publisher.sendMessage('Disable style', const.SLICE_STATE_CROP_MASK)
+        Publisher.sendMessage('Disable style', style=const.SLICE_STATE_CROP_MASK)
         evt.Skip()
         self.Destroy()
 
@@ -3260,14 +3260,14 @@ class FillHolesAutoDialog(wx.Dialog):
             conn = self.panel3dcon.GetConnSelected()
             orientation = 'VOLUME'
 
-        data = {
+        parameters = {
             'target': target,
             'conn': conn,
             'orientation': orientation,
             'size': self.spin_size.GetValue(),
         }
 
-        Publisher.sendMessage("Fill holes automatically", data)
+        Publisher.sendMessage("Fill holes automatically", parameters=parameters)
 
 
     def OnBtnClose(self, evt):
@@ -3529,3 +3529,30 @@ class ObjectCalibrationDialog(wx.Dialog):
 
     def GetValue(self):
         return self.obj_fiducials, self.obj_orients, self.obj_ref_id, self.obj_name
+
+
+class SurfaceProgressWindow(object):
+    def __init__(self):
+        self.title = "InVesalius 3"
+        self.msg = _("Creating 3D surface ...")
+        self.style = wx.PD_APP_MODAL | wx.PD_APP_MODAL | wx.PD_CAN_ABORT | wx.PD_ELAPSED_TIME
+        self.dlg = wx.ProgressDialog(self.title,
+                                     self.msg,
+                                     parent=None,
+                                     style=self.style)
+        self.running = True
+        self.error = None
+        self.dlg.Show()
+
+    def WasCancelled(self):
+        #  print("Cancelled?", self.dlg.WasCancelled())
+        return self.dlg.WasCancelled()
+
+    def Update(self, msg=None, value=None):
+        if msg is None:
+            self.dlg.Pulse()
+        else:
+            self.dlg.Pulse(msg)
+
+    def Close(self):
+        self.dlg.Destroy()
